@@ -78,6 +78,40 @@ yt-dlp --playlist-end 20 -f "bv*+ba/b" -o "videos/%(playlist_index)03d_%(id)s.%(
 - **说话人分离**：`pyannote.audio`（pip install pyannote.audio）→ ASR 文本按说话人分段标记 `[说话人A/B]`，访谈/播客类蒸馏时按人归组。
 - **自动章节分段**：场景切分 + 转录文本聚类（或 LLM 按语义切章）→ 生成章节标题与时间轴，长视频先章节化再蒸馏，`structure` 桶可直接复用章节树。
 
+## 4.5 OCR 竖排处理（竖版页面 / 古籍 / 竖排图文）
+
+OCR 引擎默认按「横排从左到右」假设输出，**竖排中文**（文字从上到下、列从右到左，如古籍 / 竖版标题 / 对联）会被读成乱序或逐字散列。用 `scripts/ocr_layout.py` 做「检测 → 按列重组 → 右起排序」。
+
+**① 各引擎 OCR 输出 → 统一 JSON**（每块带边框 + 文本，四点框自动兼容）：
+
+```bash
+# PaddleOCR（Python API 拿 result 转 JSON，或直接存 json）
+paddleocr --image_dir frames/ --lang ch --use_angle_cls true
+#   → 每条记录转 {"box":[x1,y1,x2,y2] 或 四点,"text":...,"conf":...}
+# rapidocr：engine.predict(img) → boxes/texts/scores → 同结构
+# tesseract：tesseract img stdout -l chi_sim tsv → 按 left/top/width/height 组 box，滤低置信
+```
+
+**② 重组**（把 OCR JSON 喂给重排器）：
+
+```bash
+python scripts/ocr_layout.py --input ocr.json --mode auto        # 自动检测竖排 → 右起重组（默认）
+python scripts/ocr_layout.py --input ocr.json --mode vertical --column-order ltr --mark-columns
+#   --mode auto|vertical|horizontal；--column-order rtl(右起,默认)|ltr(左起)；--mark-columns 输出 [列N] 便于核对
+#   检测规则：窄块（宽 ≤ 高×0.7）占比 ≥50% 判竖排；用户明示竖排时直接 --mode vertical
+```
+
+**③ 旋转兜底**（OCR 单字识别率低时：竖排转横排再 OCR）：
+
+```bash
+ffmpeg -i page.jpg -vf "transpose=1" page_rot90.jpg        # 顺时针 90°（transpose=2 逆时针）
+# 或 Pillow：python -c "from PIL import Image; Image.open('p.jpg').rotate(-90, expand=True).save('r.jpg')"
+```
+
+旋转后重新 OCR（此时文字已横排，引擎识别率更高），再把结果坐标**反变换回原图**后仍走 `ocr_layout.py` 重组；或旋转后直接按横排阅读顺序核对。仍不理想 → 保留原帧作视觉证据，OCR 文本标 low 进人工审阅。
+
+**④ 标注**：竖排来源在 `source_media.note` 标 `vertical_text`，与 `platform_video` / `asr_only` 同体系，便于溯源与再蒸馏。
+
 ## 5. 失败兜底规则
 
 | 场景 | 处理 |
