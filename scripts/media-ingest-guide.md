@@ -120,6 +120,71 @@ ffmpeg -i page.jpg -vf "transpose=1" page_rot90.jpg        # 顺时针 90°（tr
 | ASR 语言识别差 | 显式指定 `--language zh`；无字幕时以 ASR 为准并标 low confidence |
 | OCR 误识别 | 保留原始帧作视觉证据（图文块图片不删），OCR 文本标 low 并进人工审阅 |
 | 视频无有效音频（纯画面教学） | 跳过 ASR，仅关键帧 + OCR + 画面语义描述三通道 |
+| 网址抓取失败（短暂网络/限流） | 重试 ≤3 次 + 备用通道（§5.5） |
+| 网址抓取失败（沙箱通道序列化故障） | **非工厂责任**——立刻停手，不要逐 URL 重试；提示用户重启会话 |
+
+## 5.5 网址渠道失败分级 · 备用通道命令清单
+
+> 配合 distillation-method §17.1 使用。本节给"动手层"的命令模板。
+
+### ① 批次前通道健全性探测（30s 预算）
+
+```bash
+# Bash + curl（与 WebFetch 是独立通道，WebFetch 限流时常仍能成功）
+curl -sI -o /dev/null -w "%{http_code} %{time_total}s\n" --max-time 10 https://example.com/
+# 也可用 WebFetch 单次空跑 https://example.com/ 探测
+# 期望：200/301/302 之一；429/5xx → A 类（限流/抖动，可重试）；连接拒/超时 → A 类
+# 关键：若两次探测都"参数 undefined" → C 类（沙箱通道坏了），立刻停手告知用户
+```
+
+### ② A 类失败的重试与备用通道（按序尝试）
+
+```bash
+# 方案 1：原样重试（带退避与 UA）
+for i in 1 2 3; do
+  curl -L --max-time 30 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+       --retry 1 --retry-delay $((2**i)) -o raw/page.html "<URL>" \
+    && break || sleep $((2**i))
+done
+
+# 方案 2：让 yt-dlp 接手（部分平台反爬会绕过）
+yt-dlp --no-check-certificates -U --user-agent "Mozilla/5.0 ..." \
+       --retries 3 --fragment-retries 3 -o raw/yt.%(ext)s "<URL>"
+
+# 方案 3：互联网档案馆快照（公开页最稳的兜底）
+curl -L --max-time 30 -o raw/wayback.html "https://web.archive.org/web/0/<URL>"
+#   也可在浏览器手动查看：web.archive.org/web/<URL>
+
+# 方案 4：readability 提取（抓回的 HTML 转干净正文）
+trafilatura -i raw/page.html -o raw/page.txt
+#   或 readability-lxml：python -c "from readability import read; ..."
+```
+
+### ③ B/D 类失败（反爬/登录/JS-only）—— 不重试
+
+- 不调任何重试；
+- 提示用户在浏览器导出（HTML / 另存为 / Markdown）；
+- 或导出 PDF/截图后走本地文件输入（OCR/竖排路径）；
+- 若用户能登录该站 → 让其手动复制正文粘贴进对话。
+
+### ④ C 类失败（沙箱序列化故障）—— 立刻停手 + Bug Report
+
+- **不要重试**——C 类对所有后续调用同样表现，重试只浪费用户时间；
+- 文字模板：**「沙箱侧工具调用通道故障（参数 url/command 整层丢失），非本工厂可修复。请尝试：① 重启会话 ② 检查沙箱代理/MCP 配置 ③ 换工具集。如反复出现请向宿主/Bug Report。」**
+- 同时把 `source_media.note` 标 `channel_fault`，便于事后筛选失败样本与统计故障频次。
+
+### ⑤ 失败来源标注（在 SKILL.md 第 1 步的 source_media 桶）
+
+```json
+{
+  "id": "m-3",
+  "type": "url",
+  "uri": "https://example.com/foo",
+  "note": "via_curl"   // 或 "via_wayback" / "platform_video" / "vertical_text" / "channel_fault"
+}
+```
+
+——便于再蒸馏与故障排查时按 `note` 字段过滤失败/备用来源样本。
 
 ## 6. 产出落点
 

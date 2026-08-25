@@ -4,7 +4,7 @@ description: 将原始知识源（文档、FAQ、SOP、转录稿、聊天记录�
 agent_created: true
 slug: knowledge-distiller
 displayName: 知识蒸馏工厂（开源版）
-version: 3.5.0
+version: 3.6.0
 summary: 把任意领域知识源（文档/FAQ/SOP/转录/视频/网页/图片/竖排古籍/知识库）蒸馏为可复用、可进化的 WorkBuddy 技能；子技能自带进化底座，工厂可自检升级。
 license: MIT
 ---
@@ -32,7 +32,7 @@ license: MIT
 - 单源：直接进入第 2 步。
 - 多源/知识库：先按下方"多源与知识库模式"做摄入与对齐，再继续。
 - **视频输入**（本地文件 / 链接）：按「媒体摄入协议」（见 references/distillation-method.md 第 17 节）做多模态提取——①音频轨 ASR 转录（词级时间戳）；②视频轨**场景切分**抽关键帧（画面变化才抽，不做均匀抽帧）；③字幕轨（如有）校正 ASR；④画面 OCR 提取 PPT/白板/代码内文字（**竖版/竖排文字**自动检测并按列重组，见下方「图片与竖排输入」）；⑤元数据（标题/简介/时长/作者）。最后**时间轴对齐成图文块**——每块 = 一段转录文字 + 该时段关键帧 + 帧内 OCR，图文互证。关键帧做**三级去重**：pHash 视觉相似 + 直方图差异 + OCR 文本差异（画面相同但字幕/文字变了 → 判新帧）。可选增强：关键帧画面语义描述（多模态模型一句话概括画面）、说话人分离（访谈/播客按人归组）、自动章节分段（长视频先切章再蒸馏）——细节见第 17 节。
-- **网址输入**：正文提取（readability 去广告/导航）、保留表格/列表/代码块/图片 alt、抓取元数据（URL/标题/作者/**发布时间**——发布时间喂给 freshness 桶）。动态页/需登录页无法抓取时，提示用户导出或授权。
+- **网址输入**：正文提取（readability 去广告/导航）、保留表格/列表/代码块/图片 alt、抓取元数据（URL/标题/作者/**发布时间**——发布时间喂给 freshness 桶）。**渠道失败按四级分类处理**——A 类短暂网络/限流（重试 ≤3 次 + 备用通道 yt-dlp/curl/wayback）；B 类反爬/登录/签名（不重试，走用户导出/授权）；**C 类沙箱通道序列化故障（工厂无能力修，提示用户重启会话，别空转）**；D 类 JS-only/captcha（走用户导出/授权）。**批量前先做一次轻量通道探测**，命中 C 类故障立刻停手不要逐 URL 重试。细节见 references/distillation-method.md §17.1。
   - **网址内嵌视频探测**：访问网址后先探测页面内是否含视频——①URL 直接指向视频文件（.mp4/.webm/.m3u8 等）→ 直接解析；②页面含 `<video>` 标签 / `og:video` 元数据 → 提取视频源地址；③视频平台分享页（B站/抖音/YouTube 等）→ 解析平台链接。探测到视频即下载后走上方「视频输入」的五轨提取流程（ASR/关键帧/OCR/字幕/元数据 → 图文块），与正文提取合并为同一来源的多通道输入。平台视频需登录/反爬无法直接抓取时，提示用户下载后本地导入。
   - **多视频形态展开**：一个链接可能是合集/播放列表/博主主页，或一次给多个链接——先判定形态（单视频 S1 / 多视频页 S2 / 合集 S3 / 主页 S4 / 多链接 S5）再展开为视频清单（预扫不下载、按视频 id 去重）；清单超阈值（默认 >20 条）时与用户确认裁剪范围（全部 / 最近 N 条 / 时间段 / 指定合集 / 关键词过滤），合并后逐条摄入（细节见第 17 节「媒体来源展开」）。
 - **多次收集**：同一来源（视频/网址/文档）再次摄入时**版本化存储**（记录 `collected_at` 时间戳），做文本 diff 只处理变化部分，走「跨次合并四步」增量更新——不重跑全量。
@@ -49,7 +49,7 @@ license: MIT
 评估维度：①体量（条数/页数/字数是否超出单次提示舒适区）；②动态性（是否常变、是否已有在线知识库可检索）。两者任一命中即选路由 B。
 注意：路由 B 的核心是「骨架稳定、细节外挂」，避免 SKILL.md 膨胀与知识过期——但这要求来源可被检索（本地导出索引，或已连接在线知识库）。若来源既大又不可检索，先提示用户导出/连接检索后端，再走路由 B。
 
-### 第 2 步 — 抽取（标准表示 · v3.0）
+### 第 2 步 — 抽取（标准表示 · v3.1）
 一律抽取为统一的固定 JSON Schema（见下方「标准抽取 Schema」），**不要**用自由表格或散落要点——统一结构便于后续度量覆盖率、排序人工审阅与跨源对齐。
 
 **横向五层**之外，本步引入**纵向「道法术器」层级树（dftq）**与**结构／导图／流通**三类新桶，构成完整抽取矩阵：
@@ -63,7 +63,7 @@ license: MIT
 ```json
 {
   "entities":   [{"term":"","definition":"","aliases":[],"category":"","related":[],"dim":"dao|fa|shu|qi|detail|cross","path":"","dftq_ref":"","confidence":"high|medium|low","source_ref":""}],
-  "relations":  [{"from":"","rel":"","to":"","dim":"dao|fa|shu|qi|detail|cross","path":"","dftq_ref":"","confidence":"","source_ref":""}],
+  "relations":  [{"from":"","rel_type":"cause_effect|if_then|before_after|beats|exception_of|conflicts_with|refines|part_of|other","rel":"","to":"","dim":"dao|fa|shu|qi|detail|cross","path":"","dftq_ref":"","confidence":"","source_ref":""}],
   "rules":      [{"id":"r1","statement":"","applies_when":"","severity":"must|should|may","exceptions":"","dim":"dao|fa|shu|qi|detail|cross","path":"","dftq_ref":"","confidence":"","source_ref":""}],
   "decisions":  [{"condition":"","action":"","priority":"","fallback":"","dim":"dao|fa|shu|qi|detail|cross","path":"","dftq_ref":"","confidence":"","source_ref":""}],
   "metrics":    [{"name":"","value":"","unit":"","comparator":">=|<=|=|in","applies_to":"","dim":"dao|fa|shu|qi|detail|cross","path":"","dftq_ref":"","confidence":"","source_ref":""}],
@@ -82,6 +82,7 @@ license: MIT
     {"id":"x1","dim":"detail","title":"话术模板字段","summary":"","detail":"称呼/痛点/替代方案/收口四字段","parent_id":"q1","confidence":"high","source_ref":"tpl-1"}
   ],
   "flows":      {"forward":[{"from_dim":"dao","to_dim":"fa","trigger":"","note":""}],"reverse":[{"from_dim":"detail","to_dim":"qi","trigger":"","note":""}]},
+  "logic":      [{"id":"l1","type":"chain|branch|sequence|tradeoff","trigger":"","premise":"","steps":[""],"condition":"","branches":[{"if":"","then":""}],"conclusion":"","fallback":"","priority":1,"dim":"dao|fa|shu|qi|detail|cross","path":"","dftq_ref":"","confidence":"high|medium|low","source_ref":""}],
   "mindmap":    [{"node":"","parent":"","children":[],"dim":"dao|fa|shu|qi|detail|cross","source_ref":""}],
   "domain_ext": [{"ext_type":"compliance|error_code|api_param|symptom_cause|other","name":"","value":"","applies_when":"","constraint":"","dftq_ref":"","dim":"dao|fa|shu|qi|detail|cross","path":"","confidence":"high|medium|low","source_ref":""}],
   "triggers":   [{"id":"t1","intent":"","patterns":[""],"negative":[""],"route_to":"","priority":1,"dim":"dao|fa|shu|qi|detail|cross","path":"","dftq_ref":"","confidence":"high|medium|low","source_ref":""}],
@@ -105,9 +106,10 @@ license: MIT
   - `structure` 抽**目录 → 章节 → 重点小标题**的层级树（`level/title/parent/aliases`），`aliases` 即「现代名称/别称」；每条带 `dim` 与 `path`，把细化的知识锚在原文结构里。注意 `structure` 是**原文物理结构**，与下方 `dftq` 的**逻辑层级（道法术器）**是两个维度，可并存。
   - `dftq`：**道法术器层级树**主轴——节点 `{id, parent_id, dim, title, summary, detail, confidence, source_ref}`。`parent_id` 指向上一层，形成「道⊃法⊃术⊃器⊃细节」归属链；一条道下挂多条法、一条法下挂多条术、一条术下挂多条器、一条器下挂多条细节，**每层子项数不设硬上限**。横向桶（rules/steps/…）可附 `dftq_ref` 指向树节点，建立「内容 → 层级」关联。
   - `flows` 记录来源里知识的**流通方式**——正向推导链（道→法→术→器→细节：为什么→用什么方法→什么技法→什么工具→什么参数）与运行时逆向链（细节→器→术→法→道：什么参数→什么工具→什么技法→合于什么方法→合于什么原则）；每条含触发条件 `trigger` 与衔接说明 `note`。
+  - `logic`（v3.6 新增）记录知识**内在逻辑如何运转**——把推理/决策/编排的运转机制蒸馏成可执行链：`chain` 因果/推导链（`premise` 前提 → `steps` 推理步骤 → `conclusion` 结论，回答"为什么/怎么推出来的"）；`branch` 条件分支（`condition` 判定 + `branches` if-then 列表 + `fallback` 兜底，回答"什么条件下走哪条路"）；`sequence` 步骤时序（`steps` 有序编排，含先后/并行/回退语义，回答"先做什么后做什么"）；`tradeoff` 权衡取舍（`premise` 权衡点 + `steps` 对比 + `conclusion` 取舍结论，回答"为什么选它不选它"）。每条带 `trigger` 触发条件与 `priority` 优先级。**凡资料含可复用的推理/判断/编排逻辑，都必须抽 `logic`，而不是只抽孤立要点**——这是"把知识蒸馏出逻辑运转"的主载体。
   - `mindmap` 由 `structure`（骨架）+ `dftq`（层级）+ `relations/entities`（关联）**派生**的导图节点（`node/parent/children/dim`）；标注"派生"而非重复抽取，**仅长文/多章资料生成**——短文（单篇、无章节结构）跳过，只给每条打 `path`。
 - `source_ref` 源自哪个段落/文档/来源（多源时必填，便于溯源与第 5 步核查）。
-- 下游映射：`persona→系统提示`、`metrics→规则硬数字断言`、`examples→few-shot`、`relations→路由B检索`、`edge_cases→边界段`、`ambiguity→残留盲区`、`structure→章节目录`、`dftq→道法术器层级（子技能主结构）`、`mindmap→导图`、`flows→子技能逆向工作流`、`triggers→子技能「何时使用」与路由判断`、`conditions/state_machine→子技能前置检查与状态分支`、`acceptance→第5步 gold 集与反例素材`、`io_contract→输入输出格式与失败处理`、`decision_tree→多分支流程`、`diagnosis→排障顺序与危险预警`、`freshness/deps→路由B决策与依赖/过时提示`、`permissions→权限校验与 do_not 清单`、`domain_ext→领域规则/参数表/条款清单`、`source_media→媒体溯源与增量更新锚点（图文块/章节/帧定位）`、`dim→各层级落点`。
+- 下游映射：`persona→系统提示`、`metrics→规则硬数字断言`、`examples→few-shot`、`relations→路由B检索`、`edge_cases→边界段`、`ambiguity→残留盲区`、`structure→章节目录`、`dftq→道法术器层级（子技能主结构）`、`mindmap→导图`、`flows→子技能逆向工作流`、`logic→子技能「逻辑运转段」（推理/决策/执行编排）`、`triggers→子技能「何时使用」与路由判断`、`conditions/state_machine→子技能前置检查与状态分支`、`acceptance→第5步 gold 集与反例素材`、`io_contract→输入输出格式与失败处理`、`decision_tree→多分支流程`、`diagnosis→排障顺序与危险预警`、`freshness/deps→路由B决策与依赖/过时提示`、`permissions→权限校验与 do_not 清单`、`domain_ext→领域规则/参数表/条款清单`、`source_media→媒体溯源与增量更新锚点（图文块/章节/帧定位）`、`dim→各层级落点`。
 
 #### 领域扩展桶（domain_ext）
 通用 Schema 之上，`domain_ext` 承载**领域特有字段**——通用五层桶装不下、但对特定领域至关重要的一类知识。每条记录 `{ext_type, name, value, applies_when, constraint, dftq_ref, dim, path, confidence, source_ref}`：
@@ -139,6 +141,15 @@ license: MIT
 - **缺层不补造**：整层为零（如纯操作手册只有"术+器+细节"），属诊断结论而非失败——在输出报告标「本资料缺道层/缺法层」并记入残留盲区；**绝不凭空编造一个道/法**。仅当用户明确要求"补齐某层"时，才标 `needs_human` 请人工补，不自行生成。
 - **薄层/薄链**：某层条数极少或平均置信低，标"薄"并在报告提示该层/链可能不足以支撑技能，建议补充来源或降权使用。
 - 诊断结果回灌第 3 步：压缩时按层级均衡取舍，避免技能只堆积某一层（如全是"术"而无"道"锚定原则），也要避免「有道无术」「有术无器」的空链。
+
+#### 逻辑自检（六维诊断 · 逻辑自洽维 · v3.6 新增）
+在五层诊断（层级覆盖）之后、补料决策点之前，对抽取结果做一次**逻辑自洽检查**——层级完整 ≠ 逻辑自洽，检查知识"内在逻辑能否运转"：
+- **矛盾检测**：扫描 `rules`/`decisions` 的 statement/condition 两两互斥（如 r1 must X 与 r2 must 非 X）；`relations` 中 `conflicts_with` 未裁决的对；`deps` 中 `conflicts_with` 类型——命中即记「矛盾对」，未裁决的入残留盲区并标 `needs_human`（走冲突裁决）。
+- **循环依赖检测**：以 `deps`（prereq/depends_on）与 `steps`（order/input→output）、`logic.sequence` 构建引用图，检出环（A 依赖 B 且 B 依赖 A）→ 记「循环依赖」，回第 2 步重抽或标 `needs_human`。
+- **前提缺失检测**：`rules.applies_when` / `decisions.condition` / `conditions` / `logic.trigger` 引用的概念，在 `entities`/`dftq` 中未定义 → 记「前提缺失」进 known-gaps（含"被引用但未定义"清单）。
+- **分支不全检测**：`decision_tree` / `state_machine` / `logic.branch` 缺 `fallback` 或缺明显分支（有"是"无"否"）→ 记「分支不全」，补 fallback 或标 `needs_human`。
+- **层间内容跳跃**：`logic` 链的 `conclusion` 与 `premise` 之间缺推理步骤、`dftq` 父子节点内容语义断层（父谈 A 子谈 B）→ 记「层间跳跃」，薄链提示。
+- 自检输出「**逻辑诊断清单**」（矛盾对 / 循环依赖 / 前提缺失 / 分支不全 / 层间跳跃 五类 + 数量 + 涉及节点），并入残留盲区/known-gaps；结果随「补料/继续决策点」一起呈现给用户（可并入该决策的提示模板，作为第六维诊断结果）。
 
 #### 补料 / 继续决策点（五层诊断后）
 诊断结束、压缩之前，蒸馏器**主动向用户呈现三选一决策**，让用户决定「五层缺/薄/断链」如何处理。**绝不替用户默选**——每条路径的影响范围不同，需用户确认后进入下一步。决策提示模板（在对话里直接呈现，措辞可灵活但要点齐）：

@@ -72,6 +72,19 @@ g2 部分答对 缺「升级到财务」分支 → 原因：缺规则（source: 
 - `freshness`：验证前先扫 `valid_until`，已过期节点在报告中标「时效预警」，不计入失败但须提示重蒸馏。
 - `permissions`：gold 须含一例触碰 `guardrail` 的边界（如"输出客户身份证号"应被拒绝）；触红线视为「违规」，直接判失败并标 `needs_human`。
 - `state_machine`：gold 须覆盖一个状态迁移（事件→动作→下一态），判定动作与 `next_state` 是否正确。
+- `logic` / `relations(conflicts_with)`（v3.6 新增）：见下节「逻辑断言」。
+
+### 7.1 逻辑断言（v3.6 新增 · 知识逻辑性的验证兜底）
+
+抽取含 `logic` 链、`relations.conflicts_with`、`decision_tree`、`state_machine` 时，gold 集**附加逻辑类断言**（与内容断言并列，同样计入通过率与回流）：
+
+1. **矛盾项必查**：每条 `conflicts_with` 或互斥规则对，gold 至少一例验证输出**不得自相矛盾**（同一场景不能既答 A 又答非 A）——命中即失败，标 `needs_human` 走冲突裁决。
+2. **循环依赖警示**：`deps`/`steps`/`logic.sequence` 引用图存在环时，gold 加"顺序执行合理性"断言——输出不得出现无限依赖/自指（如"先执行 A，而 A 依赖 B，B 又依赖 A"）。
+3. **分支全覆盖**：`logic.branch` / `decision_tree` / `state_machine` 的**每个分支至少一例 gold**（含 `fallback`/else/兜底路径），避免只测主路径漏分支。
+4. **前提校验**：`rules.applies_when` / `condition` 引用未定义概念时，gold 断言应验证输出能**提示前提缺失/需澄清**，而非硬答或编造。
+5. **运转链可执行性**：`logic.chain` 至少一例 gold 验证"前提→步骤→结论"推导可复现（给同样前提，能推出同样结论）。
+
+失败原因归类沿用 §4（含 `合并错误` 归因 → 合并降级）；逻辑断言失败属严重项，默认标 `needs_human` 进人工审阅，不自动绕过。
 
 ## 8. 升级回归验证（v3.0：子 skill 自动进化时的验证）
 

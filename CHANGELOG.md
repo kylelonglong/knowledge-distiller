@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.6（2026-08-25）— 逻辑性处理增强 + 媒体摄入网址通道加固
+
+### 逻辑性处理增强（Logic Handling · 把知识"内在逻辑"蒸馏出来）
+- **relations.rel_type 类型化**：每条实体/概念间关系强制打标逻辑类型（`cause_effect`/`if_then`/`before_after`/`beats`/`exception_of`/`conflicts_with`/`refines`/`part_of`/`other`）；关系可统计、可检索、可自检（矛盾检测即扫 `conflicts_with`）；下游支撑路由 B 召回与知识图谱。
+- **新增 `logic` 桶（运转链蒸馏）**：把知识"内在如何运转"蒸馏成可执行链——`chain` 因果/推导链、`branch` 条件分支、`sequence` 步骤时序、`tradeoff` 权衡取舍；凡资料含可复用推理/判断/编排逻辑**必须抽 `logic`**，而非只抽孤立要点；下游 → 子技能「逻辑运转段」（与 `flows` 的层间流通互补）。
+- **逻辑自检（六维诊断·逻辑自洽维）**：压缩前对抽取结果做一次逻辑自洽检查——矛盾检测、循环依赖检测、前提缺失检测、分支不全检测、层间跳跃检测，输出「逻辑诊断清单」并入残留盲区/known-gaps；严重项（矛盾/循环）标 `needs_human` 不自动修；跨次合并后必须重跑。
+- **验证逻辑断言（verify-protocol §7.1）**：gold 集附加逻辑类断言（矛盾必查 / 循环依赖警示 / 分支全覆盖 / 前提校验 / 运转链可执行性），与内容断言并列计入通过率；逻辑断言失败属严重项，默认 `needs_human`。
+- 协议落点：`distillation-method.md` 新增 §21（21.1 类型化 / 21.2 运转链 / 21.3 自洽自检）；`SKILL.md` 第 3 步新增「逻辑自检」小节 + 抽取矩阵加 `logic` 桶与 `relations.rel_type` + 质量门加「逻辑自检」；`skill-schema.md` 抽取规范升 v3.6。
+
+### 媒体摄入网址通道加固（WebFetch 掉线 / 限流自愈）
+- **网址渠道失败四级分诊**：A 类短暂网络/限流/抖动（重试 ≤3 次，指数退避 2s/4s/8s，可换 UA/加 Referer）；B 类反爬/登录/签名/风控（不重试，直接走用户导出/授权）；C 类沙箱通道序列化故障（`Parameter 'url' expected string, but received undefined` 整层参数丢失，**非工厂责任**——立刻停手提示重启会话/检查沙箱/换工具集，本工厂无能力修复）；D 类内容不可抓（JS-only/captcha，走用户导出）。
+- **A 类备用通道**（按序）：① yt-dlp 接管 ② 本地 `curl`（与 WebFetch 独立通道，WebFetch 限流时常仍可工作）③ web.archive.org 快照 ④ 用户导出兜底；来源在 `source_media.note` 标 `via_curl` / `via_wayback` / `channel_fault`。
+- **批量前通道健全性探测**：N≥3 个 URL 前用一次轻量探测（curl -I / 单次 WebFetch），命中 C 类故障立刻停手告知用户，不空转重试。
+- 协议落点：`distillation-method.md` §17.1 新增；`SKILL.md` 第 1 步 URL 输入条目改写并指向 §17.1；`scripts/media-ingest-guide.md` §5.5 新增命令模板（探测 + 4 个备用方案 + 失败来源标注 schema 示例）。
+
+- 工厂版本 v3.5 → v3.6；抽取 Schema v3.1 → v3.6（新增 rel_type 类型化 + logic 桶）。
+
 ## v3.5（2026-08-25）— 宽松合并策略 + 验证驱动降级（合并纠错后置）
 - **合并阈值放宽**：跨次合并相似度 **≥0.6 即自动合并**（原 0.6–0.85 需事前 `needs_human` 人工确认 → 改为也自动合并，低置信点记入「待验证清单」不阻塞流程）；<0.6 仍作新子项补挂；title 归一相同必合并。
 - **新增 distillation-method §13.1「合并的验证驱动降级」**：宽松合并的错误交给验证阶段事后纠错——gold 失败归因（失败断言涉及的节点含多来源且近期自动合并 → `合并错误`）；同一合并点累计归因 ≥2 轮 → 降级三动作：①拆分回滚 ②该点转 `needs_human` ③该 title 对阈值降档（后续自动合并降为需人工确认）；每次降级记 `merge_rollback` 入 evolution-log，merge_policy 快照存 version-state。

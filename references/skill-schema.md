@@ -32,9 +32,10 @@ skill-name/
 - [ ] 无超出来源的幻觉知识。
 - [ ] 正文用祈使句。
 - [ ] 已用 gold 测试集实跑验证（迭代闭环），通过率达门槛或已记录残留盲区。
-- [ ] 抽取统一为标准化 JSON Schema v3.0（entities/relations/rules/decisions/metrics/qa/examples/steps/persona/edge_cases/ambiguity + structure/dftq/flows/mindmap + domain_ext + triggers/io_contract/conditions/state_machine/decision_tree/diagnosis/freshness/deps/permissions/acceptance + source_media），每项带 dim（道法术器/detail/cross）与 path（章节锚点）、confidence 与 source_ref；层级归属落在 dftq 桶（parent_id 表达 道⊃法⊃术⊃器⊃细节）。
+- [ ] 抽取统一为标准化 JSON Schema v3.1（entities/relations(含 rel_type 逻辑类型)/rules/decisions/metrics/qa/examples/steps/persona/edge_cases/ambiguity + structure/dftq/flows/logic/mindmap + domain_ext + triggers/io_contract/conditions/state_machine/decision_tree/diagnosis/freshness/deps/permissions/acceptance + source_media），每项带 dim（道法术器/detail/cross）与 path（章节锚点）、confidence 与 source_ref；层级归属落在 dftq 桶（parent_id 表达 道⊃法⊃术⊃器⊃细节）。
 - [ ] 已给出覆盖率（Coverage）估算与置信度（Confidence）分布，low/ambiguous 项已排入人工审阅优先级。
 - [ ] 已完成「五层覆盖度诊断」：道/法/术/器/细节 的有/缺/薄/断链已判明，缺层已入残留盲区，未凭空补造；薄层与断链已提示。
+- [ ] 已完成「逻辑自检」（六维诊断·逻辑自洽维）：矛盾对（含 `conflicts_with` 未裁决）、循环依赖（deps/steps 引用环）、前提缺失（applies_when/condition 引用未定义）、决策分支不全（decision_tree/state_machine/logic.branch 缺 fallback 或缺分支）、层间内容跳跃，已输出逻辑诊断清单并入残留盲区/known-gaps。
 - [ ] 子技能工作流已按「逆向逻辑、正向运用」（细节→定器→择术→循法→证道，细节→器→术→法→道）组织，每步向上校验，缺失层已标注。
 - [ ] 来源过大/常变时，已采用路由 B（骨架技能 + 检索路由），而非把知识正文塞进 SKILL.md。
 - [ ] 多源冲突已按「权威等级 × 置信加权」裁决，同级/合规冲突已标 `needs_human` 并列入残留盲区。
@@ -47,12 +48,12 @@ skill-name/
 - [ ] 视频/网址来源已按「媒体摄入协议」提取（多模态五轨 / 图文块 / 三级去重 / 多次收集版本化），`source_ref` 含 video_timestamp / frame_id / url / collected_at。
 - [ ] 子 skill 已预装记忆库 `references/memory/`（knowledge-grains/ + feedback/ + version-state.json + evolution-log.md），具备自动升级能力。
 
-## 标准抽取 Schema v3.0（中间表示）
-所有抽取统一输出此 JSON，按五层（事实与术语／规则与决策／内容素材／风格与边界／待定盲区）加结构/层级树/导图/流通层组织。它是「全量中间表示」：抽得细而全，作为第 3 步覆盖率度量基线；下游压缩才做「选择性落地」。每条抽取项都带 `dim`（道法术器/detail/cross 纵向维度）与 `path`（章节锚点）；**道法术器的层级归属**落在独立 `dftq` 桶（parent_id 表达 道⊃法⊃术⊃器⊃细节），与横向五层正交，构成完整抽取矩阵。
+## 标准抽取 Schema v3.6（中间表示）
+所有抽取统一输出此 JSON，按五层（事实与术语／规则与决策／内容素材／风格与边界／待定盲区）加结构/层级树/导图/流通层组织。它是「全量中间表示」：抽得细而全，作为第 3 步覆盖率度量基线；下游压缩才做「选择性落地」。每条抽取项都带 `dim`（道法术器/detail/cross 纵向维度）与 `path`（章节锚点）；**道法术器的层级归属**落在独立 `dftq` 桶（parent_id 表达 道⊃法⊃术⊃器⊃细节），与横向五层正交，构成完整抽取矩阵。**v3.1 新增：逻辑关系类型化（relations.rel_type）与逻辑运转链（logic 桶）**——把知识"内在如何运转"蒸馏出来。
 ```json
 {
   "entities":   [{"term":"","definition":"","aliases":[],"category":"","related":[],"dim":"dao|fa|shu|qi|detail|cross","path":"","dftq_ref":"","confidence":"high|medium|low","source_ref":""}],
-  "relations":  [{"from":"","rel":"","to":"","dim":"dao|fa|shu|qi|detail|cross","path":"","dftq_ref":"","confidence":"","source_ref":""}],
+  "relations":  [{"from":"","rel_type":"cause_effect|if_then|before_after|beats|exception_of|conflicts_with|refines|part_of|other","rel":"","to":"","dim":"dao|fa|shu|qi|detail|cross","path":"","dftq_ref":"","confidence":"","source_ref":""}],
   "rules":      [{"id":"r1","statement":"","applies_when":"","severity":"must|should|may","exceptions":"","dim":"dao|fa|shu|qi|detail|cross","path":"","dftq_ref":"","confidence":"","source_ref":""}],
   "decisions":  [{"condition":"","action":"","priority":"","fallback":"","dim":"dao|fa|shu|qi|detail|cross","path":"","dftq_ref":"","confidence":"","source_ref":""}],
   "metrics":    [{"name":"","value":"","unit":"","comparator":">=|<=|=|in","applies_to":"","dim":"dao|fa|shu|qi|detail|cross","path":"","dftq_ref":"","confidence":"","source_ref":""}],
@@ -71,6 +72,7 @@ skill-name/
     {"id":"x1","dim":"detail","title":"","summary":"","detail":"","parent_id":"q1","confidence":"","source_ref":""}
   ],
   "flows":      {"forward":[{"from_dim":"dao","to_dim":"fa","trigger":"","note":""}],"reverse":[{"from_dim":"detail","to_dim":"qi","trigger":"","note":""}]},
+  "logic":      [{"id":"l1","type":"chain|branch|sequence|tradeoff","trigger":"","premise":"","steps":[""],"condition":"","branches":[{"if":"","then":""}],"conclusion":"","fallback":"","priority":1,"dim":"dao|fa|shu|qi|detail|cross","path":"","dftq_ref":"","confidence":"high|medium|low","source_ref":""}],
   "mindmap":    [{"node":"","parent":"","children":[],"dim":"dao|fa|shu|qi|detail|cross","source_ref":""}],
   "domain_ext": [{"ext_type":"compliance|error_code|api_param|symptom_cause|other","name":"","value":"","applies_when":"","constraint":"","dftq_ref":"","dim":"dao|fa|shu|qi|detail|cross","path":"","confidence":"high|medium|low","source_ref":""}],
   "triggers":   [{"id":"t1","intent":"","patterns":[""],"negative":[""],"route_to":"","priority":1,"dim":"dao|fa|shu|qi|detail|cross","path":"","dftq_ref":"","confidence":"high|medium|low","source_ref":""}],
@@ -96,6 +98,8 @@ skill-name/
 - `metrics`：`comparator` 为比较符（>=/<=/=/in），量化阈值单独成桶，便于第 5 步 gold 断言校验。
 - `structure`：`level/title/parent/aliases` 抽目录→章节→重点小标题层级树（**原文物理结构**），`aliases` 即现代名称/别称。与 `dftq`（**逻辑层级**）是两个维度，可并存。
 - `flows`：`forward` 正向推导链（道→法→术→器→细节）、`reverse` 运行时逆向链（细节→器→术→法→道），每条含 `trigger` 与 `note`。
+- `relations.rel_type`（v3.1 新增）：**逻辑关系类型化**——`cause_effect` 因果（因为→所以）/ `if_then` 条件（如果→则）/ `before_after` 时序（先→后）/ `beats` 权衡取舍（优于/劣于）/ `exception_of` 例外（…的例外）/ `conflicts_with` 矛盾（与…冲突）/ `refines` 细化（…的具体化）/ `part_of` 组成。`rel` 填自然语言描述，`rel_type` 强制打标——使逻辑关系可统计、可自检（矛盾检测即扫 `conflicts_with`）。
+- `logic`（v3.1 新增）：**逻辑运转链**——把知识"内在如何运转"蒸馏成可执行推理：`chain` 因果/推导链（`premise` 前提 → `steps` 推理步骤 → `conclusion` 结论）；`branch` 条件分支（`condition` 判定 + `branches` if-then 列表 + `fallback` 兜底）；`sequence` 步骤时序（`steps` 有序步骤，含先后/并行/回退语义）；`tradeoff` 权衡取舍（`premise` 权衡点 + `steps` 对比 + `conclusion` 取舍结论）。`trigger` 触发条件、`priority` 优先级、`dftq_ref` 挂层级。下游 → 子技能「逻辑运转段」（推理/决策/执行编排），是第 3 步压缩时"知识逻辑"的主载体。
 - `mindmap`：由 `structure`+`dftq`+`relations/entities` 派生的导图节点（`node/parent/children/dim`），仅长文/多章生成，短文跳过。
 - `domain_ext`：**领域特有字段**桶（与六层并列的第七桶）。`ext_type` 预定义 `compliance`（合规条款）/ `error_code`（错误码）/ `api_param`（接口参数）/ `symptom_cause`（症状→病因）/ `other`（可扩展，如 `escalation` 升级规则）；`name`+`value` 记内容，`applies_when` 记适用情形，`constraint` 记校验/罚则/处理动作，`dftq_ref` 挂回层级树节点，`dim` 标纵向落点。按第 1 步识别的领域启用对应类型，不适用则整桶留空。领域适配表见 distillation-method.md 第 12 节。
 - `triggers`：**触达/触发与意图**（可选桶）。`intent` 意图名、`patterns` 触发说法/关键词、`negative` 否定触发（怎么说绝不用）、`route_to` 路由目标（多技能竞争指向谁）、`priority` 优先级。下游 → 子技能「何时使用」与路由判断。几乎所有技能建议抽。
