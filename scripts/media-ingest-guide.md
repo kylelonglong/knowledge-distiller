@@ -180,11 +180,74 @@ trafilatura -i raw/page.html -o raw/page.txt
   "id": "m-3",
   "type": "url",
   "uri": "https://example.com/foo",
-  "note": "via_curl"   // 或 "via_wayback" / "platform_video" / "vertical_text" / "channel_fault"
+  "note": "via_curl"   // 或 "via_wayback" / "platform_video" / "vertical_text" / "channel_fault" / "wechat_mp_blocked"
 }
 ```
 
 ——便于再蒸馏与故障排查时按 `note` 字段过滤失败/备用来源样本。
+
+## 5.6 微信公众号文章专门处置（B 类子型 · §17.1.1 配套命令清单）
+
+> 配合 distillation-method §17.1.1 使用。公众号文章即使通道 100% 健康也几乎拿不到正文（JS 加密 + Referer + 限流 + 部分文章关注全文隐藏），下面是**用户自助导出 → 再喂工厂**的命令清单。
+
+### ① 浏览器开发者工具抓包（最稳 · 拿原始 JSON）
+
+```bash
+# 用户侧步骤（让用户在浏览器里做）：
+# 1. 登录 https://mp.weixin.qq.com 并打开文章页
+# 2. F12 → Network 面板 → 筛选关键词：profile_ext / getmsg / appmsg
+# 3. 点击该 XHR 请求 → Response 一栏复制完整 JSON 对象
+# 4. 重点字段：JSON 内的 content（HTML 片段）/ title / author / publish_time
+```
+
+工厂侧拿到 JSON 后：
+
+```bash
+# 提取 content 字段单独成文件
+python -c "import json,sys; d=json.load(open('mp.json','r',encoding='utf-8')); \
+  open('mp_raw.html','w',encoding='utf-8').write(d.get('content') or d['data']['content'])"
+# readability/trafilatura 提干净正文
+trafilatura -i mp_raw.html -o mp_clean.txt
+# 喂给第 1 步文本输入即可（source_media.type=local_clip, note=wechat_mp_blocked）
+```
+
+### ② 微信客户端分享导出（推荐 · 不依赖抓包）
+
+```bash
+# 用户侧步骤：
+# 1. 手机微信打开文章 → 右上角 ··· → 分享
+# 2. 选「印象笔记」（或「微信收藏」）
+# 3. 印象笔记端导出为 .enex 或 .md；微信收藏端复制全文
+# 4. 把 .md 文件或全文粘贴到对话或上传为本地附件
+```
+
+工厂侧：直接走第 1 步**本地文件输入**（MD/TXT）或**文本输入**粘贴格式，与常规来源抽取一致。
+
+### ③ 直接粘贴正文（兜底）
+
+```bash
+# 用户选中全文 → 复制 → 在对话粘贴
+# 工厂按文本输入处理；source_media.type=local_clip, note=wechat_mp_blocked
+```
+
+### ④ 来源标注 schema 示例
+
+```json
+{
+  "id": "m-wx-1",
+  "type": "local_clip",
+  "uri": "https://mp.weixin.qq.com/s/xxxxxx",
+  "note": "wechat_mp_blocked",   // 标记原始失败原因
+  "captured_via": "browser_devtools_json",   // 或 "wechat_share" / "manual_paste"
+  "collected_at": "2026-08-25T15:30+08:00"
+}
+```
+
+### ⑤ 边界与提示
+
+- **版权边界**：仅处理用户**已通过微信客户端打开过**的内容；不替用户绕过关注可见保护；
+- **多篇批量**：每一篇都需用户单独抓/粘贴，工厂不自动循环抓包（避免触犯微信风控）；
+- **与 C 类故障区分**：若用户反馈"连这条命令的输入参数都收不到"——那是 §5.5 ④ 的 C 类沙箱通道故障，与公众号无关，不要把 C 类 Bug Report 误推给 §5.6。
 
 ## 6. 产出落点
 

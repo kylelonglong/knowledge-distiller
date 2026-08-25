@@ -1,5 +1,14 @@
 # Changelog
 
+## v3.6.1（2026-08-25）— 微信公众号文章专门处置（渠道可靠性补丁）
+- **触发**：v3.6 发行后用户回馈公众号文章（`mp.weixin.qq.com`）链接蒸馏依旧失败，且会触发"通道全挂"误判为 C 类沙箱故障——但本质是**通道健康但内容不可抓**（JS 加密 + Referer 校验 + 第三方 IP 限流 + 部分文章关注后全文隐藏四层叠加），v3.6 §17.1 把"反爬"统称了，没分平台。这次补 §17.1.1 专门子型。
+- **改动**（kg-factory-open，3 文件）：
+  - `references/distillation-method.md §17.1.1` 新增「微信公众号文章专门处置」——四层拦截机制表 + 工厂边界（明确无能力自动修：改 UA/Referer/走 wayback/yt-dlp 均不奏效，重试反而触发更快封禁）+ 用户自助导出三路径（①浏览器开发者工具抓 `profile_ext`/`getmsg` response JSON ②微信客户端分享到印象笔记或微信收藏后导出为 Markdown ③直接选中全文粘贴）+ 捕获后处理（按 `local_clip` 走文本输入，不重新走 URL 通道）+ `source_media.note` 新增 `wechat_mp_blocked`，与原 `via_curl`/`via_wayback`/`platform_video`/`vertical_text`/`channel_fault` 同体系；
+  - `SKILL.md §1`「网址输入」下追加缩进条目「公众号文章专门处置（`mp.weixin.qq.com`，B 类子型）」并指向 §17.1.1；
+  - `scripts/media-ingest-guide.md §5.6` 新增命令清单——浏览器抓包 JSON → `trafilatura` 提正文 / 微信客户端分享导出 / 粘贴正文 / 来源标注 schema（含 `captured_via` 字段）/ 版权与多篇边界提示。
+- **关键认知**：「通道全挂 ≠ 一定是 C 类」——可能是 C 类故障（沙箱参数丢失，停手 + Bug Report 宿主），也可能是"通道健康但反复请求 0% 命中"（公众号四层拦截叠加，走 §17.1.1）。工厂侧应据信号分流，不混为一谈。
+- **版本归属**：用户拍板 **A（并入 v3.6.1 patch release）**——与 v3.6 渠道加固是同一类「渠道可靠性」问题，归一档最自然。工厂版本 v3.6.0 → v3.6.1；抽取 Schema 仍 v3.6（未改抽取矩阵，仅媒体摄入协议与工具增强）。
+
 ## v3.6（2026-08-25）— 逻辑性处理增强 + 媒体摄入网址通道加固
 
 ### 逻辑性处理增强（Logic Handling · 把知识"内在逻辑"蒸馏出来）
